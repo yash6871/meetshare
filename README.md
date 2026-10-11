@@ -24,6 +24,7 @@ Other devices need HTTPS for camera and screen sharing: deploy to Render/Railway
 - Simultaneous multi-screen sharing (with system audio); click a screen to enlarge it
 - Chat, raise hand, reactions, participants list, invite link, meeting timer
 - Host controls: mute all, lock meeting, stop a participant's share, remove, end for everyone
+- Video effects: background blur, built-in or custom background images, and colour filters (all processed in the browser)
 - Local recording (.webm); everyone sees a REC badge
 - Live captions (Chrome/Edge, Web Speech API): each participant captions their own speech
 - AI Copilot (Groq): summary, action items, catch-up, follow-up email, or any question. Context is the live captions and chat, and replies stream in.

@@ -28,6 +28,7 @@ const IC = {
   copy: '<rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6.5A2.5 2.5 0 0 0 13.5 4h-7A2.5 2.5 0 0 0 4 6.5v7A2.5 2.5 0 0 0 6.5 16H8"/>',
   send: '<path d="M4 12l16-8-6 16-2.5-6.5z"/>',
   x: '<path d="M6 6l12 12M18 6L6 18"/>',
+  wand: '<path d="M4 20L15 9"/><path d="M14.5 3.5l1 2.5 2.5 1-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1z"/><path d="M19 13l.7 1.8 1.8.7-1.8.7L19 18l-.7-1.8-1.8-.7 1.8-.7z"/>',
 };
 const icon = (n) => `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n] || ""}</svg>`;
 document.querySelectorAll("[data-ic]").forEach((el) => (el.innerHTML = icon(el.dataset.ic)));
@@ -71,6 +72,9 @@ function toast(text) {
 // ================= Local media (mic + camera) =================
 const VIDEO = { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24 } };
 
+// Camera effects (background blur / replace, filters): the processed track replaces the raw camera track
+const fxTrack = (t) => (window.CamFX ? CamFX.attach(t) : t);
+
 async function initMedia() {
   try {
     const s = await navigator.mediaDevices.getUserMedia({
@@ -78,7 +82,7 @@ async function initMedia() {
       video: VIDEO,
     });
     micTrack = s.getAudioTracks()[0];
-    camTrack = s.getVideoTracks()[0];
+    camTrack = fxTrack(s.getVideoTracks()[0]);
     camOn = true;
   } catch {
     try { // camera unavailable or denied -> try microphone only
@@ -95,7 +99,7 @@ async function setCam(on) {
   if (on) {
     try {
       const s = await navigator.mediaDevices.getUserMedia({ video: VIDEO });
-      camTrack = s.getVideoTracks()[0];
+      camTrack = fxTrack(s.getVideoTracks()[0]);
       camOn = true;
     } catch { toast("Camera not found or permission was denied"); return; }
   } else {
@@ -1051,3 +1055,66 @@ function leave(msg) {
   if (msg) sessionStorage.setItem("msg", msg);
   setTimeout(() => location.reload(), 150); // brief delay so a recording can finish saving
 }
+
+
+// ================= Video effects panel =================
+(function () {
+  if (!window.CamFX) return;
+  const modal = $("fxModal"), bgs = $("fxBgs"), chips = $("fxFilters");
+  const bgList = [
+    { id: "none", label: "None", style: "background:#1a1d29" },
+    { id: "blur", label: "Blur", style: "background:linear-gradient(135deg,#5a6280,#8d92a3);filter:blur(.5px)" },
+    { id: "blur-strong", label: "More blur", style: "background:linear-gradient(135deg,#3a3f55,#6c7390)" },
+  ];
+  Object.entries(CamFX.SCENES).forEach(([id, sc]) => {
+    const c = document.createElement("canvas"); c.width = 96; c.height = 60; sc.draw(c.getContext("2d"), 96, 60);
+    bgList.push({ id: "scene:" + id, label: sc.label, img: c.toDataURL("image/jpeg", .8) });
+  });
+  bgList.push({ id: "upload", label: "Upload", upload: true });
+
+  function render() {
+    const st = CamFX.get();
+    bgs.innerHTML = "";
+    bgList.forEach((b) => {
+      const el = document.createElement("button");
+      el.type = "button"; el.className = "fxtile" + (st.bg === b.id || (b.upload && st.bg === "custom") ? " on" : "");
+      el.setAttribute("aria-label", b.label);
+      el.innerHTML = `<span class="fxsw" style="${b.img ? `background-image:url(${b.img})` : b.style || ""}">${b.upload ? "+" : ""}</span><small>${b.label}</small>`;
+      el.onclick = () => (b.upload ? $("fxFile").click() : CamFX.setBackground(b.id));
+      bgs.appendChild(el);
+    });
+    chips.innerHTML = "";
+    Object.entries(CamFX.FILTERS).forEach(([id, f]) => {
+      const el = document.createElement("button");
+      el.type = "button"; el.className = "fxchip" + (st.filter === id ? " on" : "");
+      el.textContent = f.label;
+      el.onclick = () => CamFX.setFilter(id);
+      chips.appendChild(el);
+    });
+    $("fxNote").textContent = st.segFailed ? "Background effects could not load on this browser. Filters still work."
+      : !st.supported ? "Colour filters are not supported on this browser (blur and backgrounds still work)."
+      : "Effects run on your device. Your camera video is not uploaded for processing.";
+    $("fxOff").hidden = !!camTrack;
+  }
+
+  function open() {
+    $("fxVideo").srcObject = camTrack ? new MediaStream([camTrack]) : null;
+    render();
+    modal.hidden = false;
+  }
+  function close() { modal.hidden = true; $("fxVideo").srcObject = null; }
+
+  $("pvFx").onclick = open;
+  $("fxBtn").onclick = open;
+  $("fxClose").onclick = close;
+  modal.addEventListener("click", (e) => { if (e.target === modal) close(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !modal.hidden) close(); });
+  $("fxFile").onchange = async (e) => {
+    const f = e.target.files[0]; e.target.value = "";
+    if (!f) return;
+    if (f.size > 8 * 1024 * 1024) return toast("Image is too large (max 8 MB)");
+    try { await CamFX.setCustomImage(f); } catch (err) { toast(err.message); }
+  };
+  CamFX.onChange(render);
+  render();
+})();

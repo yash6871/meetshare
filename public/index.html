@@ -75,6 +75,7 @@
         <div class="pvctl">
           <button id="pvMic" type="button" class="round" aria-label="Toggle microphone"><span class="ic"></span></button>
           <button id="pvCam" type="button" class="round" aria-label="Toggle camera"><span class="ic"></span></button>
+          <button id="pvFx" type="button" class="round" aria-label="Video effects" title="Backgrounds and filters"><span class="ic" data-ic="wand"></span></button>
         </div>
       </div>
       <div class="acct">
@@ -172,6 +173,7 @@
     <footer class="dock">
       <button id="micBtn" class="dk"><span class="ic"></span><b class="tip"></b></button>
       <button id="camBtn" class="dk"><span class="ic"></span><b class="tip"></b></button>
+      <button id="fxBtn" class="dk"><span class="ic" data-ic="wand"></span><b class="tip">Effects</b></button>
       <button id="shareBtn" class="dk"><span class="ic"></span><b class="tip"></b></button>
       <button id="ccBtn" class="dk"><span class="ic"></span><b class="tip"></b></button>
       <button id="recBtn" class="dk"><span class="ic"></span><b class="tip"></b></button>
@@ -196,6 +198,18 @@
     <div id="toast" class="toast" role="status"></div>
   </div>
 
+  <div id="fxModal" class="modal fx" hidden>
+    <div class="modalbox fxbox" role="dialog" aria-label="Video effects">
+      <div class="modalhead"><b>Video effects</b><button id="fxClose" type="button" class="ghost small">Done</button></div>
+      <div class="fxprev"><video id="fxVideo" autoplay muted playsinline></video><p id="fxOff">Turn on your camera to preview effects</p></div>
+      <div class="fxsec"><h4>Background</h4><div id="fxBgs" class="fxgrid"></div></div>
+      <div class="fxsec"><h4>Filters</h4><div id="fxFilters" class="fxchips"></div></div>
+      <p id="fxNote" class="hint"></p>
+      <input id="fxFile" type="file" accept="image/png,image/jpeg,image/webp" hidden />
+    </div>
+  </div>
+
+  <script src="effects.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
