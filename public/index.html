@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MeetShare</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;800&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="aurora" aria-hidden="true"></div>
+
+  <!-- ================= AUTH ================= -->
+  <main id="auth" class="lobby" hidden>
+    <section class="hero">
+      <div class="brand"><span class="logo"></span>MeetShare</div>
+      <h1>Everyone shares.<br /><em>At the same time.</em></h1>
+      <p class="lead">Secure video meetings where every participant can share their screen <b>simultaneously</b>. Includes an AI copilot that listens to the conversation and prepares summaries and action items.</p>
+      <ul class="chips">
+        <li><i data-ic="screen"></i>Multi-screen sharing</li>
+        <li><i data-ic="sparkles"></i>AI copilot</li>
+        <li><i data-ic="cc"></i>Live captions</li>
+        <li><i data-ic="lock"></i>Host controls</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <div class="authtabs" role="tablist">
+        <button id="tabSignIn" type="button" role="tab" class="active">Sign in</button>
+        <button id="tabSignUp" type="button" role="tab">Create account</button>
+      </div>
+      <form id="authForm" novalidate>
+        <label id="nameField" hidden>Full name
+          <input id="authName" maxlength="30" autocomplete="name" placeholder="e.g. Vivek Sharma" />
+        </label>
+        <label>Email address
+          <input id="authEmail" type="email" maxlength="120" autocomplete="email" placeholder="you@company.com" required />
+        </label>
+        <label>Password
+          <span class="row">
+            <input id="authPass" type="password" maxlength="128" autocomplete="current-password" placeholder="At least 8 characters" required />
+            <button id="passToggle" type="button" class="ghost" aria-label="Show password">Show</button>
+          </span>
+        </label>
+        <label id="confirmField" hidden>Confirm password
+          <input id="authPass2" type="password" maxlength="128" autocomplete="new-password" placeholder="Re-enter your password" />
+        </label>
+        <p id="passHint" class="hint" hidden>Use at least 8 characters, including a letter and a number.</p>
+        <button id="authSubmit" type="submit" class="primary big">Sign in</button>
+      </form>
+      <p id="authError" class="error" role="alert"></p>
+    </section>
+  </main>
+
+  <!-- ================= LOBBY ================= -->
+  <main id="lobby" class="lobby" hidden>
+    <section class="hero">
+      <div class="brand"><span class="logo"></span>MeetShare</div>
+      <h1>Ready to<br /><em>join?</em></h1>
+      <p class="lead">Check your camera and microphone, then enter a meeting code. Share the code or the invite link with the people you want to meet.</p>
+      <ul class="chips">
+        <li><i data-ic="screen"></i>Multi-screen sharing</li>
+        <li><i data-ic="sparkles"></i>AI copilot</li>
+        <li><i data-ic="cc"></i>Live captions</li>
+        <li><i data-ic="lock"></i>Host controls</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <div class="pv">
+        <video id="pvVideo" autoplay muted playsinline></video>
+        <div id="pvAvatar" class="avatar"><span></span></div>
+        <div class="pvctl">
+          <button id="pvMic" type="button" class="round" aria-label="Toggle microphone"><span class="ic"></span></button>
+          <button id="pvCam" type="button" class="round" aria-label="Toggle camera"><span class="ic"></span></button>
+        </div>
+      </div>
+      <div class="acct">
+        <span class="pav" id="acctAvatar"></span>
+        <span class="grow"><b id="acctName"></b><small id="acctEmail"></small></span>
+        <button id="signOutBtn" type="button" class="ghost small">Sign out</button>
+      </div>
+      <div id="lobbyHome">
+        <button id="createBtn" type="button" class="primary big">New meeting</button>
+        <div class="or"><span>or join with a code or link</span></div>
+        <form id="joinForm">
+          <span class="row">
+            <input id="roomInput" maxlength="200" required autocomplete="off" placeholder="Enter meeting code or invite link" aria-label="Meeting code or invite link" />
+            <button type="submit" class="ghost joinbtn">Join</button>
+          </span>
+        </form>
+      </div>
+      <div id="lobbyReady" hidden>
+        <h2 class="readytitle">Your meeting is ready</h2>
+        <p class="hint">Share the link or code with the people you want to invite. They need an account to join.</p>
+        <div id="inviteReady" class="invite"></div>
+        <button id="startBtn" type="button" class="primary big">Start meeting</button>
+        <button id="readyBack" type="button" class="ghost">Back</button>
+      </div>
+      <p id="joinError" class="error" role="alert"></p>
+    </section>
+  </main>
+
+  <!-- ================= MEETING ================= -->
+  <div id="meeting" class="meeting" hidden>
+    <header class="top">
+      <div class="brand small"><span class="logo"></span>MeetShare</div>
+      <button id="copyBtn" class="codepill" title="Meeting details and invite"><span id="roomTitle"></span><i data-ic="copy"></i></button>
+      <div class="topr">
+        <span id="lockBadge" class="badge" hidden><i data-ic="lock"></i>Locked</span>
+        <span id="recBadge" class="badge rec" hidden><i class="reddot"></i>REC</span>
+        <span id="timer" class="timer">00:00</span>
+      </div>
+    </header>
+
+    <section id="main" class="main">
+      <div id="screens" class="screens" aria-label="Shared screens"></div>
+      <div id="gallery" class="gallery" aria-label="Participants"></div>
+      <div id="caption" class="caption" hidden></div>
+      <div id="shareBanner" class="sharebanner" hidden><i class="reddot"></i><span>You are sharing your screen</span><button id="shareStop" type="button" class="danger small">Stop sharing</button></div>
+      <div id="floaters" class="floaters" aria-hidden="true"></div>
+    </section>
+
+    <aside id="panel" class="panel" hidden>
+      <div class="tabs">
+        <button id="tabPeople" class="tab"><i data-ic="users"></i>People</button>
+        <button id="tabChat" class="tab"><i data-ic="chat"></i>Chat</button>
+        <button id="tabAi" class="tab ai"><i data-ic="sparkles"></i>AI</button>
+        <button id="panelClose" class="tab x" aria-label="Close"><i data-ic="x"></i></button>
+      </div>
+
+      <div id="peoplePane" class="pane">
+        <div id="hostTools" class="hosttools" hidden>
+          <button id="muteAllBtn" class="ghost small">Mute all</button>
+          <button id="lockBtn" class="ghost small">Lock meeting</button>
+          <button id="endBtn" class="danger small">End for all</button>
+        </div>
+        <ul id="people" class="people"></ul>
+      </div>
+
+      <div id="chatPane" class="pane" hidden>
+        <div id="chatLog" class="chatlog" aria-live="polite"></div>
+        <form id="chatForm" class="chatform">
+          <input id="chatInput" maxlength="500" placeholder="Message everyone" autocomplete="off" />
+          <button type="submit" class="primary sq" aria-label="Send"><i data-ic="send"></i></button>
+        </form>
+      </div>
+
+      <div id="aiPane" class="pane" hidden>
+        <div class="aiHead">
+          <span class="spark"><i data-ic="sparkles"></i></span>
+          <div><b>Meeting Copilot</b><small id="aiStatus">Checking AI service…</small></div>
+        </div>
+        <div id="aiLog" class="ailog"></div>
+        <div id="aiChips" class="aichips"></div>
+        <form id="aiForm" class="chatform">
+          <input id="aiInput" maxlength="600" placeholder="Ask anything about this meeting" autocomplete="off" />
+          <button id="aiSend" type="submit" class="primary sq" aria-label="Ask"><i data-ic="send"></i></button>
+        </form>
+        <label class="capLang">Caption language
+          <select id="capLang">
+            <option value="en-IN">English (India)</option>
+            <option value="hi-IN">Hindi (India)</option>
+            <option value="en-US">English (US)</option>
+          </select>
+        </label>
+      </div>
+    </aside>
+
+    <footer class="dock">
+      <button id="micBtn" class="dk"><span class="ic"></span><b class="tip"></b></button>
+      <button id="camBtn" class="dk"><span class="ic"></span><b class="tip"></b></button>
+      <button id="shareBtn" class="dk"><span class="ic"></span><b class="tip"></b></button>
+      <button id="ccBtn" class="dk"><span class="ic"></span><b class="tip"></b></button>
+      <button id="recBtn" class="dk"><span class="ic"></span><b class="tip"></b></button>
+      <button id="handBtn" class="dk"><span class="ic"></span><b class="tip"></b></button>
+      <button id="reactBtn" class="dk"><span class="ic" data-ic="smile"></span><b class="tip">React</b></button>
+      <span class="sep"></span>
+      <button id="peopleBtn" class="dk"><span class="ic" data-ic="users"></span><b class="tip">People</b></button>
+      <button id="chatBtn" class="dk"><span class="ic" data-ic="chat"></span><b class="tip">Chat</b><i id="chatBadge" class="dot" hidden></i></button>
+      <button id="aiBtn" class="dk ai"><span class="ic" data-ic="sparkles"></span><b class="tip">AI Copilot</b></button>
+      <span class="sep"></span>
+      <button id="leaveBtn" class="dk leave"><span class="ic" data-ic="leave"></span><b class="tip">Leave</b></button>
+    </footer>
+
+    <div id="infoModal" class="modal" hidden>
+      <div class="modalbox" role="dialog" aria-label="Meeting details">
+        <div class="modalhead"><b>Meeting details</b><button id="infoClose" type="button" class="ghost small">Close</button></div>
+        <div id="inviteInfo" class="invite"></div>
+      </div>
+    </div>
+
+    <div id="reactionMenu" class="reactionMenu" hidden></div>
+    <div id="toast" class="toast" role="status"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

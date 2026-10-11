@@ -1,0 +1,13 @@
+{
+  "name": "meetshare",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^18.0.7",
+    "express": "^4.19.2",
+    "ws": "^8.18.0"
+  }
+}
