@@ -19,11 +19,19 @@ const SESSION_DAYS = 7;
 const COOKIE = "ms_session";
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
 
-// ================= Storage (users + sessions, JSON files) =================
-fs.mkdirSync(DATA_DIR, { recursive: true });
-const USERS_FILE = path.join(DATA_DIR, "users.json");
-const SESSIONS_FILE = path.join(DATA_DIR, "sessions.json");
-const MEETINGS_FILE = path.join(DATA_DIR, "meetings.json");
+// ================= Storage (users + sessions + meetings) =================
+// If DATABASE_URL is set (Neon / Supabase / Render Postgres) data lives in Postgres and survives restarts and redeploys.
+// Without it we fall back to local JSON files (fine for localhost, but Render's free disk is wiped on every restart).
+const DATABASE_URL = process.env.DATABASE_URL;
+let pool = null;
+if (DATABASE_URL) {
+  const { Pool } = require("pg");
+  pool = new Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false }, max: 3 });
+  pool.on("error", (e) => console.error("DB pool error:", e.message));
+} else {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+const fileFor = (name) => path.join(DATA_DIR, `${name}.json`);
 
 function readJson(file, fallback) {
   try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return fallback; }
@@ -34,13 +42,38 @@ function writeJson(file, data) { // atomic write: never leaves a half-written fi
   fs.renameSync(tmp, file);
 }
 
-const users = new Map(Object.entries(readJson(USERS_FILE, {}))); // email -> user
-const sessions = new Map(Object.entries(readJson(SESSIONS_FILE, {}))); // sha256(token) -> { uid(email), exp }
-const meetings = new Map(Object.entries(readJson(MEETINGS_FILE, {}))); // code -> { owner, createdAt, lastUsed }
-const saveMeetings = () => writeJson(MEETINGS_FILE, Object.fromEntries(meetings));
+async function loadStore(name) {
+  if (!pool) return readJson(fileFor(name), {});
+  const r = await pool.query("SELECT value FROM kv WHERE key = $1", [name]);
+  return r.rows[0] ? r.rows[0].value : {};
+}
+const writeChain = {}; // per-key queue so writes never land out of order
+function persist(name, obj) {
+  if (!pool) { writeJson(fileFor(name), obj); return Promise.resolve(); }
+  const json = JSON.stringify(obj);
+  const run = () => pool.query(
+    "INSERT INTO kv (key, value) VALUES ($1, $2::jsonb) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+    [name, json]
+  ).catch((e) => console.error(`DB save failed (${name}):`, e.message));
+  writeChain[name] = (writeChain[name] || Promise.resolve()).then(run);
+  return writeChain[name];
+}
+
+const users = new Map(); // email -> user
+const sessions = new Map(); // sha256(token) -> { uid(email), exp }
+const meetings = new Map(); // code -> { owner, createdAt, lastUsed }
+const saveMeetings = () => persist("meetings", Object.fromEntries(meetings));
 const MEETING_TTL = 7 * 864e5;
-const saveUsers = () => writeJson(USERS_FILE, Object.fromEntries(users));
-const saveSessions = () => writeJson(SESSIONS_FILE, Object.fromEntries(sessions));
+const saveUsers = () => persist("users", Object.fromEntries(users));
+const saveSessions = () => persist("sessions", Object.fromEntries(sessions));
+
+async function initStore() {
+  if (pool) await pool.query("CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value JSONB NOT NULL)");
+  for (const [name, map] of [["users", users], ["sessions", sessions], ["meetings", meetings]]) {
+    Object.entries(await loadStore(name)).forEach(([k, v]) => map.set(k, v));
+  }
+  console.log(`Storage: ${pool ? "Postgres" : "local JSON files"} | users: ${users.size}, sessions: ${sessions.size}`);
+}
 
 // ================= Auth helpers =================
 const sha = (s) => crypto.createHash("sha256").update(s).digest("hex");
@@ -209,7 +242,7 @@ app.post("/api/auth/signup", async (req, res) => {
   const user = { id: crypto.randomUUID(), email, name, salt: salt.toString("hex"), hash: await hashPassword(password, salt), createdAt: Date.now() };
   if (users.has(email)) return res.status(409).json({ error: "An account with this email already exists. Please sign in." }); // re-check after the async hash
   users.set(email, user);
-  saveUsers();
+  await saveUsers(); // make sure the account is really stored before we answer
   createSession(req, res, email);
   res.json({ user: publicUser(user) });
 });
@@ -438,8 +471,10 @@ wss.on("connection", (ws) => {
 // Hosts like Render/Heroku drop idle websockets
 setInterval(() => wss.clients.forEach((c) => c.readyState === 1 && c.ping()), 30000).unref();
 
-server.listen(PORT, async () => {
-  console.log(`MeetShare running on http://localhost:${PORT}`);
-  const s = await checkGroq(true);
-  console.log(s.status === "ok" ? `AI ready: ${s.model}${s.detail ? ` (${s.detail})` : ""}` : `AI NOT ready: ${s.detail}`);
-});
+initStore().then(() => {
+  server.listen(PORT, async () => {
+    console.log(`MeetShare running on http://localhost:${PORT}`);
+    const s = await checkGroq(true);
+    console.log(s.status === "ok" ? `AI ready: ${s.model}${s.detail ? ` (${s.detail})` : ""}` : `AI NOT ready: ${s.detail}`);
+  });
+}).catch((e) => { console.error("Storage init failed:", e); process.exit(1); });
